@@ -10,10 +10,9 @@ class CurveLocalizer:
         #     with open(mapDir,'rb') as handle:
         #         self.map = pickle.load(handle)
         # else:
-        self.map = mapDir
+        self.map = mapDir       # 1D map array
         
         # create a 2d matrix using the map vector:
-        # i.e. map = [0,1,2,3,4]
         # 2d map matrix= [[0,1,2],
         #                 [1,2,3],
         #                 [2,3,4],
