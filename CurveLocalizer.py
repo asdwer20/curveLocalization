@@ -3,21 +3,12 @@ from tracemalloc import start
 import numpy as np
 import os,pickle
 from scipy.ndimage import convolve1d
+from scipy import optimize
 
 class CurveLocalizer:
     def __init__(self, mapDir, sampleDist, startIdx):
-        # if(os.path.isdir(mapDir)):
-        #     with open(mapDir,'rb') as handle:
-        #         self.map = pickle.load(handle)
-        # else:
         self.map = mapDir
         
-        # create a 2d matrix using the map vector:
-        # i.e. map = [0,1,2,3,4]
-        # 2d map matrix= [[0,1,2],
-        #                 [1,2,3],
-        #                 [2,3,4],
-        #                 ....]
         self.sampling_dist = sampleDist
         self.Xprev = np.zeros((3,1))
         self.prevTime = 0
@@ -27,6 +18,14 @@ class CurveLocalizer:
         self.v_min = 2
         self.max_size = 6
         self.min_size = 4
+        
+        # X,Y coordinates of target scan 
+        self.x = 0 
+        self.y = 0
+
+    def loadPts(self, pts):
+        self.x = pts[0]
+        self.y = pts[1]
 
     # def predict(self, imu_twist, vesc_twist, dt, X_prev):
     def predict(self, vx, steeringangle, dt, X_prev):
@@ -49,18 +48,6 @@ class CurveLocalizer:
         print(deltaIdx)
 
         return deltaIdx
-
-
-    # def convolve1d(self, map_array, window, start, win_size):
-
-    #     win_sum = np.sum(window)
-        
-    #     temp = convolve1d(map_array[int(start - 0.5*win_size):int(start + 0.5*win_size)+1], np.flip(window))
-    #     #b = np.convolve(map_array[int(start - 0.5*win_size):int(start + 0.5*win_size)+1], np.ones(self.measurement_len,dtype=int),'valid')
-    #     print(temp)
-    #     # marker_num = np.argmin((b-temp))
-    #     # print()
-    #     return int(marker_num+start-0.5*win_size)
 
     def convolve(self, map_array, window, start, win_size):
         mLen = len(window)
@@ -86,6 +73,27 @@ class CurveLocalizer:
 
         return int(win_size)
 
+    # Functions to fit circle to set of points
+    def calcRadius(self, xc, yc):
+        return sqrt((self.x-xc)**2 + (self.y-yc)**2)
+
+    def f_2(self, center):
+        Ri = calcRadius(*center)
+        return Ri-Ri.mean()
+
+    def fitcircle(self):
+        x_m = mean(self.x)
+        y_m = mean(self.y)
+
+        center_est = x_m, y_m
+        center, ier = optimize.leastsq(f_2, center_est)
+
+        radius = calcRadius(*center)
+
+        print('center: ', center, 'radius: ', radius)
+
+        return center, radius
+
     def computePosition(self, measurements, vx, steeringangle, currTime):
         dt = currTime - self.prevTime
         deltaIdx = self.predict(vx, steeringangle, dt, self.Xprev)
@@ -95,3 +103,4 @@ class CurveLocalizer:
         curve_num = self.convolve(self.map, measurements, nextIdx, window_size)
 
         return curve_num
+
