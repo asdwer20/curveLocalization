@@ -1,7 +1,7 @@
 from cmath import pi
 import numpy as np
 
-from CurveLocalizer import CurveLocalizer
+from .CurveLocalizer import CurveLocalizer
 
 #ROS2
 import rclpy
