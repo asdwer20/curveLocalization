@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'curvLoc = curveLocalization.publisher_member_function:main'
+            'curvLoc = curveLocalization.CurveLocalizerNode:main'
         ],
     },
 )
