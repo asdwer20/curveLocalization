@@ -19,7 +19,7 @@ from std_msgs.msg import Float32
 # (30 degrees either direction from zero), 
 
 NODE_NAME = 'curvloc_node'
-
+MODE == 1 # 1: pure curve detection, #2: everything else
 LIDAR_TOPIC_NAME = '/scan'
 ODOM_TOPIC_NAME = '/odom'
 STEERING_TOPIC_NAME = '/steering'
@@ -38,8 +38,8 @@ class CurveLocalizerNode(Node):
         # Odometry Data
         self.vx = 0
         self.steering = 0
-        self.newVelAvailable = False
-        self.newSteerAvailable = False
+        self.newVelAvailable = True
+        self.newSteerAvailable = True
 
         self.cl = CurveLocalizer(mapDir, sampleDist, startIdx, history_size, self.get_clock().now().to_msg())
 
@@ -51,6 +51,7 @@ class CurveLocalizerNode(Node):
         self.heading_sub = self.create_subscription(Float32, STEERING_TOPIC_NAME, self.steeringCB)
 
         # Call position computer
+        if MODE == 1
         self.Ts = 1/100
         self.create_timer(self.Ts, self.run)
 
@@ -63,12 +64,19 @@ class CurveLocalizerNode(Node):
 
         fov = self.laserFOV*pi/180 #convert fov to radians
         idx_count = int(fov/(dtheta*2)) #number of indicies to consider on either side
-        x = np.append(x[:idx_count], x[-idx_count:])
-        y = np.append(y[:idx_count], y[-idx_count:])
+        leftx = x[-idx_count:]
+        rightx = x[:idx_count]
+        lefty = y[-idx_count:]
+        righty = y[:idx_count]
+        
+        left_cent, left_curv = self.cl.fitcircle(leftx, lefty)
+        right_cent, right_curv = self.cl.fitcircle(rightx, righty)
 
-        center,curvature = self.cl.fitcircle(x,y)
-        self.cl.addMeasurement(curvature)
-        self.newLidarAvailable = True
+        if self.MODE == 1
+            print('left_curv: ', left_curv, 'right_curv: ', right_curv)
+        else:
+            self.cl.addMeasurement(right_curv) # change this in the future (choose curv)
+            self.newLidarAvailable = True
 
     def odomCB(self, msg):
         self.vx = msg.twist.twist.linear.x
@@ -96,9 +104,8 @@ class CurveLocalizerNode(Node):
     def run(self):
         if self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
             self.cl.computePosition(self.vx, self.steering, self.get_clock().now().to_msg(), True)
-        if self.newVelAvailable and self.newSteerAvailable:
+        if ~self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
             self.cl.computePosition(self.vx, self.steering, self.get_clock().now().to_msg(), False)
-
 
 def main(args=None):
     rclpy.init(args=args)
