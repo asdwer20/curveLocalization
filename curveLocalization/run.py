@@ -1,4 +1,4 @@
-import CurveLocalizer
+import curveLocalization.CurveLocalizerNode as CurveLocalizerNode
 import numpy as np
 
 if __name__=="__main__":
@@ -49,7 +49,7 @@ if __name__=="__main__":
     time = 0.5
     startIdx = 6
     measurement = np.array([0.1, 0.1, 1.7])
-    cl = CurveLocalizer.CurveLocalizer(testMap, mapSampleDist, startIdx)
+    cl = CurveLocalizerNode.CurveLocalizer(testMap, mapSampleDist, startIdx)
 
    
     curve_num = cl.computePosition(measurement, vx, steeringAngle, time)
