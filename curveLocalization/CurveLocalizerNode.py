@@ -5,7 +5,7 @@ from .CurveLocalizer import CurveLocalizer
 
 #ROS2
 import rclpy
-from rclpy import Node
+from rclpy.node import Node
 
 from sensor_msgs.msg import LaserScan
 from sensor_msgs.msg import Imu # Might not be needed depending on the output of the gap detector
@@ -19,17 +19,23 @@ from std_msgs.msg import Float32
 # (30 degrees either direction from zero), 
 
 NODE_NAME = 'curvloc_node'
-MODE == 1 # 1: pure curve detection, #2: everything else
+MODE = 1 # 1: pure curve detection, #2: everything else
 LIDAR_TOPIC_NAME = '/scan'
 ODOM_TOPIC_NAME = '/odom'
 STEERING_TOPIC_NAME = '/steering'
 class CurveLocalizerNode(Node):
     def __init__(self):
-        mapDir = self.get_parameter('mapDir').value
-        sampleDist = self.get_parameter('sampleDist').value
-        startIdx = self.get_parameter('startIdx').value
-        history_size = self.get_parameter('hist_size').value
-        laserFOV = self.get_parameter('laserFOV').value
+        # mapDir = self.get_parameter('mapDir').value
+        # sampleDist = self.get_parameter('sampleDist').value
+        # startIdx = self.get_parameter('startIdx').value
+        # history_size = self.get_parameter('hist_size').value
+        # laserFOV = self.get_parameter('laserFOV').value
+
+        mapDir = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
+        sampleDist = 0.5
+        startIdx = 0
+        history_size = 3
+        laserFOV = 60
 
         # Laser Scan Parameters
         self.laserFOV = laserFOV # FOV in degrees, must be even
