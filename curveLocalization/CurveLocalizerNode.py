@@ -51,9 +51,9 @@ class CurveLocalizerNode(Node):
         self.heading_sub = self.create_subscription(Float32, STEERING_TOPIC_NAME, self.steeringCB)
 
         # Call position computer
-        if MODE == 1
-        self.Ts = 1/100
-        self.create_timer(self.Ts, self.run)
+        if MODE == 1:
+            self.Ts = 1/100
+            self.create_timer(self.Ts, self.run)
 
     # Callback Functions
     def laserScanCB(self, msg):
@@ -72,7 +72,7 @@ class CurveLocalizerNode(Node):
         left_cent, left_curv = self.cl.fitcircle(leftx, lefty)
         right_cent, right_curv = self.cl.fitcircle(rightx, righty)
 
-        if self.MODE == 1
+        if self.MODE == 1:
             print('left_curv: ', left_curv, 'right_curv: ', right_curv)
         else:
             self.cl.addMeasurement(right_curv) # change this in the future (choose curv)
