@@ -15,7 +15,9 @@ class CurveLocalizer:
         self.currIdx = startIdx
 
         self.history_size = 5
-
+        self.x = 0.0
+        self.y = 0.0
+        
         self.v_max = 5 
         self.v_min = 2
         self.max_size = 6
@@ -42,9 +44,6 @@ class CurveLocalizer:
         deltaIdx = int(travelDist/self.sampling_dist)
 
         self.Xprev = np.copy(X)
-
-        print(travelDist)
-        print(deltaIdx)
 
         return deltaIdx
 
@@ -80,13 +79,15 @@ class CurveLocalizer:
         return Ri-Ri.mean()
 
     def fitcircle(self, x, y):
+        self.x = x
+        self.y = y
         x_m = np.mean(x)
         y_m = np.mean(y)
 
         center_est = x_m, y_m
         center, ier = optimize.leastsq(self.f_2, center_est)
 
-        curvature = 1/self.calcRadius(*center)
+        curvature = np.mean(1/self.calcRadius(*center))
 
         print('center: ', center, 'curvature: ', curvature)
 
@@ -100,5 +101,7 @@ class CurveLocalizer:
         if lidarAvailable:
             window_size = self.windowSize(vx, self.v_max, self.v_min, self.max_size, self.min_size)
             nextIdx = self.convolve(self.map, self.measurement_hist, nextIdx, window_size)
+
+        self.prevTime = currTime
 
         return nextIdx

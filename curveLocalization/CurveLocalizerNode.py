@@ -1,5 +1,7 @@
 from cmath import pi
 import numpy as np
+from control.matlab import *
+import time
 
 from .CurveLocalizer import CurveLocalizer
 
@@ -25,17 +27,42 @@ ODOM_TOPIC_NAME = '/odom'
 STEERING_TOPIC_NAME = '/steering'
 class CurveLocalizerNode(Node):
     def __init__(self):
-        # mapDir = self.get_parameter('mapDir').value
-        # sampleDist = self.get_parameter('sampleDist').value
-        # startIdx = self.get_parameter('startIdx').value
-        # history_size = self.get_parameter('hist_size').value
-        # laserFOV = self.get_parameter('laserFOV').value
+        # ROS2 communication 
+        super().__init__(NODE_NAME)
+        #self.publiser_ = self.create_publisher(, self.publiserCB)
+        self.lidar_sub = self.create_subscription(LaserScan, LIDAR_TOPIC_NAME, self.laserScanCB, 10)
+        self.odom_sub = self.create_subscription(Odometry, ODOM_TOPIC_NAME, self.odomCB, 10)
+        self.heading_sub = self.create_subscription(Float32, STEERING_TOPIC_NAME, self.steeringCB, 10)
 
-        mapDir = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
-        sampleDist = 0.5
-        startIdx = 0
-        history_size = 3
-        laserFOV = 60
+        # Call position computer
+        if MODE == 1:
+            self.Ts = 1/100
+            self.create_timer(self.Ts, self.run)
+        
+        # Initialize default parameters
+        map_Dir_default = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
+        map_Dir_default = list(np.array(map_Dir_default, dtype = 'float'))
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('mapDir', map_Dir_default),
+                ('sampleDist', 0.5),
+                ('startIdx', 0),
+                ('history_size', 3),
+                ('laserFOV', 60)
+            ])
+
+        mapDir = self.get_parameter('mapDir').value
+        sampleDist = self.get_parameter('sampleDist').value
+        startIdx = self.get_parameter('startIdx').value
+        history_size = self.get_parameter('history_size').value
+        laserFOV = self.get_parameter('laserFOV').value
+
+        # mapDir = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
+        # sampleDist = 0.5
+        # startIdx = 0
+        # history_size = 3
+        # laserFOV = 60
 
         # Laser Scan Parameters
         self.laserFOV = laserFOV # FOV in degrees, must be even
@@ -47,25 +74,16 @@ class CurveLocalizerNode(Node):
         self.newVelAvailable = True
         self.newSteerAvailable = True
 
-        self.cl = CurveLocalizer(mapDir, sampleDist, startIdx, history_size, self.get_clock().now().to_msg())
+        self.time_now = time.time()
+        self.cl = CurveLocalizer(mapDir, sampleDist, startIdx, history_size, self.time_now)
 
-        # ROS2 communication 
-        super().__init__(NODE_NAME)
-        #self.publiser_ = self.create_publisher(, self.publiserCB)
-        self.lidar_sub = self.create_subscription(LaserScan, LIDAR_TOPIC_NAME, self.laserScanCB)
-        self.odom_sub = self.create_subscription(Odometry, ODOM_TOPIC_NAME, self.odomCB)
-        self.heading_sub = self.create_subscription(Float32, STEERING_TOPIC_NAME, self.steeringCB)
-
-        # Call position computer
-        if MODE == 1:
-            self.Ts = 1/100
-            self.create_timer(self.Ts, self.run)
+        
 
     # Callback Functions
     def laserScanCB(self, msg):
         dtheta = msg.angle_increment # Given in radians
         data = msg.ranges
-        angles = list(range(msg.angle_min, len(data), msg.angle_max))
+        angles = list(np.linspace(msg.angle_min, msg.angle_max, int((msg.angle_max-msg.angle_min)/dtheta)+1))
         x,y = self.polar2cart(data,angles)
 
         fov = self.laserFOV*pi/180 #convert fov to radians
@@ -78,7 +96,7 @@ class CurveLocalizerNode(Node):
         left_cent, left_curv = self.cl.fitcircle(leftx, lefty)
         right_cent, right_curv = self.cl.fitcircle(rightx, righty)
 
-        if self.MODE == 1:
+        if MODE == 1:
             print('left_curv: ', left_curv, 'right_curv: ', right_curv)
         else:
             self.cl.addMeasurement(right_curv) # change this in the future (choose curv)
@@ -98,20 +116,22 @@ class CurveLocalizerNode(Node):
 
     def polar2cart(self, data, angles):
         # remove nan values
-        nan_check = np.sum(np.vstack((data,angles)), axis=0)
+        nan_check = np.vstack((data,angles))
         nan_check = nan_check[:,~np.isnan(nan_check).any(axis=0)]
+
         data = nan_check[0,:]
         angles = nan_check[1,:]
 
-        x = data*np.cos(angles)
-        y = data*np.sin(angles)
+        x = np.multiply(data,np.cos(angles))
+        y = np.multiply(data,np.sin(angles))
+
         return x,y
 
     def run(self):
         if self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
-            self.cl.computePosition(self.vx, self.steering, self.get_clock().now().to_msg(), True)
+            self.cl.computePosition(self.vx, self.steering, time.time(), True)
         if ~self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
-            self.cl.computePosition(self.vx, self.steering, self.get_clock().now().to_msg(), False)
+            self.cl.computePosition(self.vx, self.steering, time.time(), False)
 
 def main(args=None):
     rclpy.init(args=args)
