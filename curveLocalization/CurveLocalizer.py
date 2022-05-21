@@ -14,7 +14,7 @@ class CurveLocalizer:
         self.prevTime = initTime
         self.currIdx = startIdx
 
-        self.history_size = 5
+        self.history_size = history_size
         self.x = 0.0
         self.y = 0.0
         

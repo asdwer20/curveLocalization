@@ -1,4 +1,5 @@
 from cmath import pi
+from turtle import right
 import numpy as np
 from control.matlab import *
 import time
@@ -22,14 +23,17 @@ from std_msgs.msg import Float32
 
 NODE_NAME = 'curvloc_node'
 MODE = 1 # 1: pure curve detection, #2: everything else
+LIDAR_TYPE = 1 # 1: LD06, 2: Hokuyo
+
 LIDAR_TOPIC_NAME = '/scan'
 ODOM_TOPIC_NAME = '/odom'
 STEERING_TOPIC_NAME = '/steering'
+
 class CurveLocalizerNode(Node):
     def __init__(self):
         # ROS2 communication 
         super().__init__(NODE_NAME)
-        #self.publiser_ = self.create_publisher(, self.publiserCB)
+        self.publiser_ = self.create_publisher(Float32MultiArray, self.publiserCB)
         self.lidar_sub = self.create_subscription(LaserScan, LIDAR_TOPIC_NAME, self.laserScanCB, 10)
         self.odom_sub = self.create_subscription(Odometry, ODOM_TOPIC_NAME, self.odomCB, 10)
         self.heading_sub = self.create_subscription(Float32, STEERING_TOPIC_NAME, self.steeringCB, 10)
@@ -40,7 +44,7 @@ class CurveLocalizerNode(Node):
             self.create_timer(self.Ts, self.run)
         
         # Initialize default parameters
-        map_Dir_default = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
+        map_Dir_default = [0,0,0,0,0,0,0]
         map_Dir_default = list(np.array(map_Dir_default, dtype = 'float'))
         self.declare_parameters(
             namespace='',
@@ -58,12 +62,6 @@ class CurveLocalizerNode(Node):
         history_size = self.get_parameter('history_size').value
         laserFOV = self.get_parameter('laserFOV').value
 
-        # mapDir = [0, 0.1, -.1, 0,.2,.1,0,28,31,28.5,25,35,31.5,30,30,0,0,-2.5,-2.5,1,0,1.6,3.2,0,31,30,32.5,33,29,28,30,31,27]
-        # sampleDist = 0.5
-        # startIdx = 0
-        # history_size = 3
-        # laserFOV = 60
-
         # Laser Scan Parameters
         self.laserFOV = laserFOV # FOV in degrees, must be even
         self.newLidarAvailable = False
@@ -76,7 +74,7 @@ class CurveLocalizerNode(Node):
 
         self.time_now = time.time()
         self.cl = CurveLocalizer(mapDir, sampleDist, startIdx, history_size, self.time_now)
-
+        self.pu
         
 
     # Callback Functions
@@ -86,12 +84,27 @@ class CurveLocalizerNode(Node):
         angles = list(np.linspace(msg.angle_min, msg.angle_max, int((msg.angle_max-msg.angle_min)/dtheta)+1))
         x,y = self.polar2cart(data,angles)
 
+        # Get Desired Scan Areas
         fov = self.laserFOV*pi/180 #convert fov to radians
-        idx_count = int(fov/(dtheta*2)) #number of indicies to consider on either side
-        leftx = x[-idx_count:]
-        rightx = x[:idx_count]
-        lefty = y[-idx_count:]
-        righty = y[:idx_count]
+        idx_count = int(fov/(dtheta)) #number of indicies to consider on either side
+
+        if LIDAR_TYPE == 1: # LD06
+            right90Idx = int((pi/2)/dtheta)
+            left90Idx = int((3*pi/2)/dtheta)
+            leftx = x[left90Idx:left90Idx+idx_count]
+            lefty = y[left90Idx:left90Idx+idx_count]
+
+            rightx = x[right90Idx-idx_count:right90Idx]
+            righty = y[right90Idx-idx_count:right90Idx]
+        
+        if LIDAR_TYPE == 2: # Hokuyo
+            right90Idx = int((pi/4)/dtheta)
+            left90Idx = int(right90Idx+pi/dtheta)
+            leftx = x[left90Idx-idx_count:left90Idx]
+            lefty = y[left90Idx-idx_count:left90Idx]       
+            
+            rightx = x[right90Idx:right90Idx+idx_count]
+            righty = y[right90Idx:right90Idx+idx_count]
         
         left_cent, left_curv = self.cl.fitcircle(leftx, lefty)
         right_cent, right_curv = self.cl.fitcircle(rightx, righty)
@@ -129,9 +142,16 @@ class CurveLocalizerNode(Node):
 
     def run(self):
         if self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
-            self.cl.computePosition(self.vx, self.steering, time.time(), True)
+            idx = self.cl.computePosition(self.vx, self.steering, time.time(), True)
+            msg = Float32MultiArray()
+            msg.data = [idx, 0.5]
+            self.publiser_.publish(msg)
         if ~self.newLidarAvailable and self.newVelAvailable and self.newSteerAvailable:
-            self.cl.computePosition(self.vx, self.steering, time.time(), False)
+            idx = self.cl.computePosition(self.vx, self.steering, time.time(), False)
+            msg = Float32MultiArray()
+            msg.data = [idx, 0.5]
+            self.publiser_.publish(msg)
+            
 
 def main(args=None):
     rclpy.init(args=args)
